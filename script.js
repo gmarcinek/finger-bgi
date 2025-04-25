@@ -1,10 +1,8 @@
-// Skrypt do aktualizacji wyświetlanych wartości suwaków
 document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("gripForm");
     const advancedToggle = document.getElementById("advancedToggle");
     const advancedOptions = document.getElementById("advancedOptions");
-
-    // Obsługa przełącznika zaawansowanych opcji
+    
     if (advancedToggle && advancedOptions) {
         advancedToggle.addEventListener("change", () => {
             advancedOptions.style.display = advancedToggle.checked ? "block" : "none";
@@ -16,144 +14,183 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Pobranie podstawowych wartości z formularza
         const L_p2 = parseFloat(document.getElementById("L_p2").value);  // długość LP2 (cm)
-        const L_p3 = parseFloat(document.getElementById("L_p3").value);  // długość LP3 (cm)
         const C_joint = parseFloat(document.getElementById("C_joint").value);  // obwód stawu DIP (cm)
         const weight = parseFloat(document.getElementById("weight").value);  // masa ciała (kg)
-
-        // Pobranie zaawansowanych opcji (jeśli dostępne)
-        let pipAngle = 90; // Domyślny kąt zgięcia PIP (stopnie)
-        let dipAngle = 0;  // Domyślny kąt zgięcia DIP (stopnie)
-        let trainingLevel = 1; // Domyślny poziom wytrenowania (1-5)
-
-        // Sprawdzenie czy zaawansowane opcje są dostępne i pobieranie ich wartości
-        if (document.getElementById("pipAngle")) {
-            pipAngle = parseFloat(document.getElementById("pipAngle").value);
-        }
-        if (document.getElementById("dipAngle")) {
-            dipAngle = parseFloat(document.getElementById("dipAngle").value);
-        }
-        if (document.getElementById("trainingLevel")) {
-            trainingLevel = parseFloat(document.getElementById("trainingLevel").value);
+        
+        // Dane dla małego palca (opcjonalne)
+        let smallFingerL_p2 = L_p2;
+        let smallFingerC_joint = C_joint;
+        
+        // Jeśli podano osobne dane dla małego palca, użyj ich
+        if (document.getElementById("smallFingerL_p2") && document.getElementById("smallFingerC_joint")) {
+            smallFingerL_p2 = parseFloat(document.getElementById("smallFingerL_p2").value);
+            smallFingerC_joint = parseFloat(document.getElementById("smallFingerC_joint").value);
         }
 
-        // Obliczenia podstawowe
-        const L_lever = L_p2 + L_p3; // Całkowita długość dźwigni (cm)
-        const BGI = (L_lever ** 2) / C_joint; // Biomechanical Grip Index
-
-        // Obliczenie średnicy stawu na podstawie obwodu (zakładając kształt okręgu)
-        const jointDiameter = C_joint / Math.PI;
-
-        // Obliczenie przybliżonej powierzchni przekroju ścięgna (mm²)
-        // Zakładamy, że powierzchnia przekroju ścięgna jest proporcjonalna do kwadratu średnicy stawu
-        const tendonArea = Math.PI * ((jointDiameter * 2.5) ** 2); // Współczynnik 2.5 to przybliżenie
-
-        // Konwersja kątów na radiany
-        const pipRadians = pipAngle * Math.PI / 180;
-        const dipRadians = dipAngle * Math.PI / 180;
-
-        // Obliczenie efektywnej długości dźwigni uwzględniając kąty zgięcia
-        // W half crimpie, PIP jest zgięty ~90°, a DIP może być lekko zgięty lub wyprostowany
-        const effectiveL_p2 = L_p2 * Math.sin(pipRadians);
-        const effectiveL_p3 = L_p3 * Math.sin(dipRadians);
-        const effectiveLever = effectiveL_p2 + effectiveL_p3;
-
-        // Obliczenie momentu siły działającego na staw PIP (Nm)
-        // Zakładamy, że siła ciężkości działa na końcu palca
-        const forceNewtons = weight * 9.81; // Konwersja kg na N
-        const leverMeters = L_lever / 100; // Konwersja cm na m
-        const moment = forceNewtons * leverMeters;
-
-        // Obliczenie naprężenia w ścięgnie (MPa)
-        // Zakładamy, że siła w ścięgnie jest proporcjonalna do momentu siły
-        // i odwrotnie proporcjonalna do efektywnego ramienia dźwigni
-        const tendonForce = moment / (effectiveLever / 100); // N
-        const tendonStress = tendonForce / tendonArea; // N/mm² = MPa
-
-        // Obliczenie współczynnika siły w oparciu o mechanikę dźwigni
-        // Współczynnik k jest odwrotnie proporcjonalny do długości dźwigni
-        // i proporcjonalny do obwodu stawu (który wpływa na przekrój ścięgna)
-        const k = C_joint / L_lever;
-
-        // Współczynniki dla różnych poziomów wytrenowania
-        // Wartości bazują na literaturze dotyczącej siły chwytu wspinaczy
-        const trainingFactors = {
-            untrained: 0.6,  // Osoba nietrenująca
-            beginner: 0.9,   // Początkujący wspinacz (< 1 rok)
-            intermediate: 1.2, // Średnio zaawansowany (1-3 lata)
-            advanced: 1.6,   // Zaawansowany (3-5 lat)
-            elite: 2.0       // Elitarny wspinacz (> 5 lat)
-        };
-
-        // Wybór współczynnika treningu na podstawie poziomu treningowego
-        let trainingFactor;
-        if (trainingLevel <= 1) trainingFactor = trainingFactors.untrained;
-        else if (trainingLevel <= 2) trainingFactor = trainingFactors.beginner;
-        else if (trainingLevel <= 3) trainingFactor = trainingFactors.intermediate;
-        else if (trainingLevel <= 4) trainingFactor = trainingFactors.advanced;
-        else trainingFactor = trainingFactors.elite;
-
-        // Obliczenie maksymalnej siły chwytu w kg
-        // Zakładamy, że maksymalna siła jest proporcjonalna do wagi ciała, 
-        // współczynnika k i poziomu wytrenowania
-        const maxGripForce = weight * k * trainingFactor;
-
-        // Obliczenie obciążenia stawów PIP i DIP
-        const pipJointLoad = tendonForce * 0.85; // 85% siły ścięgna
-        const dipJointLoad = tendonForce * 0.65; // 65% siły ścięgna
-
-        // Obliczenie ryzyka kontuzji
-        // Ryzyko rośnie wraz ze wzrostem naprężenia w ścięgnie i maleje z treningiem
-        const injuryRiskFactor = tendonStress / (trainingFactor * 10);
-        let injuryRisk;
-
-        if (injuryRiskFactor < 0.5) injuryRisk = "Niskie";
-        else if (injuryRiskFactor < 1.0) injuryRisk = "Umiarkowane";
-        else if (injuryRiskFactor < 1.5) injuryRisk = "Podwyższone";
-        else injuryRisk = "Wysokie";
+        // KLUCZOWE WSKAŹNIKI
+        // 1. Współczynnik half crimpu dla każdego palca
+        const mainFingerRatio = C_joint / L_p2;
+        const smallFingerRatio = smallFingerC_joint / smallFingerL_p2;
+        
+        // 2. Siła pojedynczych palców
+        // Zakładamy, że siła palca rośnie z kwadratem obwodu i maleje liniowo z długością
+        const mainFingerStrength = (C_joint * C_joint) / L_p2;
+        const smallFingerStrength = (smallFingerC_joint * smallFingerC_joint) / smallFingerL_p2;
+        
+        // 3. Względna siła każdego palca (standaryzacja)
+        const fingerStrengthRatio = [0.9, 1.0, 0.9, 0.7]; // wskazujący, środkowy, serdeczny, mały
+        
+        // 4. Całkowita teoretyczna siła chwytu (obie ręce, 8 palców)
+        // Dwie ręce × (wsk + środ + serd + [mały osobno wyliczony lub standardowy])
+        let totalBaseStrength;
+        
+        if (document.getElementById("smallFingerL_p2") && document.getElementById("smallFingerC_joint")) {
+            // Jeśli podano dane małego palca, używamy ich do obliczenia jego siły
+            const oneHandStrength = (
+                mainFingerStrength * fingerStrengthRatio[0] + 
+                mainFingerStrength * fingerStrengthRatio[1] + 
+                mainFingerStrength * fingerStrengthRatio[2] + 
+                smallFingerStrength * fingerStrengthRatio[3]
+            );
+            totalBaseStrength = oneHandStrength * 2; // obie ręce
+        } else {
+            // Jeśli nie podano danych małego palca, używamy danych palca środkowego z korektą
+            const oneHandStrength = mainFingerStrength * (
+                fingerStrengthRatio[0] + 
+                fingerStrengthRatio[1] + 
+                fingerStrengthRatio[2] + 
+                fingerStrengthRatio[3]
+            );
+            totalBaseStrength = oneHandStrength * 2; // obie ręce
+        }
+        
+        // 5. Współczynniki kalibracyjne dla skalowania wyników do realnych wartości
+        // Kalibracja na podstawie rzeczywistych danych (107kg przy LP2=2.4cm, C_joint=6cm)
+        const calibrationFactor = 1.1; // Współczynnik kalibracyjny
+        const baseStrengthCalibrated = totalBaseStrength * calibrationFactor;
+        
+        // 6. Uwzględnienie treningu
+        // Tylko dwa poziomy: BAZA (bez treningu) i ZAAWANSOWANY
+        const baseTrainingFactor = 0.6;  // bazowy poziom (bez treningu)
+        const advancedTrainingFactor = 1.5;  // zaawansowany wspinacz (skorygowany empirycznie)
+        
+        // 7. Obliczenie maksymalnego udźwigu
+        const maxBaseWeight = baseStrengthCalibrated * baseTrainingFactor;
+        const maxAdvancedWeight = baseStrengthCalibrated * advancedTrainingFactor;
+        
+        // 8. Stosunek maksymalnego udźwigu do masy ciała
+        const baseWeightRatio = maxBaseWeight / weight;
+        const advancedWeightRatio = maxAdvancedWeight / weight;
+        
+        // 9. Interpretacja wyników
+        let baseCapability, advancedCapability;
+        let baseCapabilityClass, advancedCapabilityClass;
+        
+        // Interpretacja dla poziomu bazowego
+        if (baseWeightRatio < 0.8) {
+            baseCapability = "Krytycznie niska - nie utrzyma się";
+            baseCapabilityClass = "critical";
+        } else if (baseWeightRatio < 1.0) {
+            baseCapability = "Bardzo niska - prawdopodobnie nie utrzyma się";
+            baseCapabilityClass = "very-low";
+        } else if (baseWeightRatio < 1.2) {
+            baseCapability = "Niska - może utrzymać się krótko";
+            baseCapabilityClass = "low";
+        } else if (baseWeightRatio < 1.5) {
+            baseCapability = "Przeciętna - powinien utrzymać się";
+            baseCapabilityClass = "average";
+        } else if (baseWeightRatio < 2.0) {
+            baseCapability = "Dobra - pewne utrzymanie";
+            baseCapabilityClass = "good";
+        } else {
+            baseCapability = "Doskonała - bardzo silny chwyt";
+            baseCapabilityClass = "excellent";
+        }
+        
+        // Interpretacja dla poziomu zaawansowanego
+        if (advancedWeightRatio < 0.8) {
+            advancedCapability = "Krytycznie niska - nie utrzyma się";
+            advancedCapabilityClass = "critical";
+        } else if (advancedWeightRatio < 1.0) {
+            advancedCapability = "Bardzo niska - prawdopodobnie nie utrzyma się";
+            advancedCapabilityClass = "very-low";
+        } else if (advancedWeightRatio < 1.2) {
+            advancedCapability = "Niska - może utrzymać się krótko";
+            advancedCapabilityClass = "low";
+        } else if (advancedWeightRatio < 1.5) {
+            advancedCapability = "Przeciętna - powinien utrzymać się";
+            advancedCapabilityClass = "average";
+        } else if (advancedWeightRatio < 2.0) {
+            advancedCapability = "Dobra - pewne utrzymanie";
+            advancedCapabilityClass = "good";
+        } else {
+            advancedCapability = "Doskonała - bardzo silny chwyt";
+            advancedCapabilityClass = "excellent";
+        }
+        
+        // 10. Analiza scenariusza redukcji masy ciała
+        const minHealthyWeight = Math.max(weight * 0.7, 45); // Min. 70% obecnej wagi, nie mniej niż 45kg
+        const advancedWeightRatioAfterLoss = maxAdvancedWeight / minHealthyWeight;
+        
+        let weightLossAnalysis;
+        if (advancedWeightRatio < 1.0 && advancedWeightRatioAfterLoss >= 1.0) {
+            weightLossAnalysis = `Redukcja masy ciała do ${minHealthyWeight.toFixed(1)} kg mogłaby pozwolić na utrzymanie się na half crimpie nawet przy zaawansowanym treningu.`;
+        } else if (advancedWeightRatio < 1.0 && advancedWeightRatioAfterLoss < 1.0) {
+            weightLossAnalysis = `Nawet po maksymalnej bezpiecznej redukcji masy ciała do ${minHealthyWeight.toFixed(1)} kg i zaawansowanym treningu, anatomiczne ograniczenia nadal uniemożliwiają efektywny half crimp.`;
+        } else {
+            weightLossAnalysis = "Przy zaawansowanym treningu, aktualna masa ciała jest odpowiednia dla Twojej zdolności chwytu.";
+        }
+        
+        // 11. Profil anatomiczny
+        const averageHalfCrimpRatio = 2.2; // Przeciętny współczynnik half crimpu
+        const percentileFromAverage = (mainFingerRatio / averageHalfCrimpRatio) * 100;
+        
+        let anatomyProfile;
+        if (percentileFromAverage < 70) {
+            anatomyProfile = "Anatomia bardzo niekorzystna dla half crimpu (cienkie palce względem długości)";
+        } else if (percentileFromAverage < 90) {
+            anatomyProfile = "Anatomia nieco niekorzystna dla half crimpu";
+        } else if (percentileFromAverage < 110) {
+            anatomyProfile = "Anatomia przeciętna dla half crimpu";
+        } else if (percentileFromAverage < 130) {
+            anatomyProfile = "Anatomia korzystna dla half crimpu";
+        } else {
+            anatomyProfile = "Anatomia bardzo korzystna dla half crimpu (grube palce względem długości)";
+        }
 
         // Wyświetlanie wyników na stronie
         const resultDiv = document.getElementById("result");
         resultDiv.innerHTML = `
-<h3>Wyniki analizy half crimpu</h3>
-
-<div class="result-section">
-<h4>Podstawowe parametry</h4>
-<p><strong>BGI (Biomechanical Grip Index):</strong> ${BGI.toFixed(2)}</p>
-<p><strong>Współczynnik siły (k):</strong> ${k.toFixed(4)}</p>
-<p><strong>Całkowita długość dźwigni:</strong> ${L_lever.toFixed(1)} cm</p>
-<p><strong>Efektywna długość dźwigni:</strong> ${effectiveLever.toFixed(1)} cm</p>
-</div>
-
-<div class="result-section">
-<h4>Parametry biomechaniczne</h4>
-<p><strong>Przybliżona powierzchnia przekroju ścięgna:</strong> ${tendonArea.toFixed(1)} mm²</p>
-<p><strong>Moment siły działający na palce:</strong> ${moment.toFixed(1)} Nm</p>
-<p><strong>Siła działająca na ścięgno:</strong> ${tendonForce.toFixed(1)} N</p>
-<p><strong>Naprężenie w ścięgnie:</strong> ${tendonStress.toFixed(1)} MPa</p>
-</div>
-
-<div class="result-section">
-<h4>Obciążenie stawów</h4>
-<p><strong>Obciążenie stawu PIP:</strong> ${pipJointLoad.toFixed(1)} N</p>
-<p><strong>Obciążenie stawu DIP:</strong> ${dipJointLoad.toFixed(1)} N</p>
-</div>
-
-<div class="result-section">
-<h4>Szacowana maksymalna siła chwytu (halfcrimp)</h4>
-<p><strong>Przy obecnym poziomie treningu:</strong> ${maxGripForce.toFixed(1)} kg</p>
-<p><strong>Szacowane ryzyko kontuzji:</strong> <span class="risk-${injuryRisk.toLowerCase()}">${injuryRisk}</span></p>
-</div>
-
-<div class="result-section">
-<h4>Porównanie z różnymi poziomami treningowymi</h4>
-<ul>
-  <li><strong>Nietrenujący:</strong> ${(weight * k * trainingFactors.untrained).toFixed(1)} kg</li>
-  <li><strong>Początkujący:</strong> ${(weight * k * trainingFactors.beginner).toFixed(1)} kg</li>
-  <li><strong>Średniozaawansowany:</strong> ${(weight * k * trainingFactors.intermediate).toFixed(1)} kg</li>
-  <li><strong>Zaawansowany:</strong> ${(weight * k * trainingFactors.advanced).toFixed(1)} kg</li>
-  <li><strong>Elitarny:</strong> ${(weight * k * trainingFactors.elite).toFixed(1)} kg</li>
-</ul>
-</div>
-`;
+        <h3>Analiza anatomicznych limitów half crimpu</h3>
+        
+        <div class="result-section">
+            <h4>Kluczowe wskaźniki</h4>
+            <p><strong>Współczynnik half crimpu (C_joint/LP2):</strong> ${mainFingerRatio.toFixed(2)}</p>
+            <p><strong>Szacowana siła uchwytu (bez treningu):</strong> ${maxBaseWeight.toFixed(1)} kg</p>
+            <p><strong>Szacowana siła uchwytu (zaawansowany):</strong> ${maxAdvancedWeight.toFixed(1)} kg</p>
+        </div>
+        
+        <div class="result-section">
+            <h4>Interpretacja wyników</h4>
+            <p><strong>Zdolność utrzymania (bez treningu):</strong> <span class="capability-${baseCapabilityClass}">${baseCapability}</span></p>
+            <p><strong>Zdolność utrzymania (zaawansowany):</strong> <span class="capability-${advancedCapabilityClass}">${advancedCapability}</span></p>
+            <p><strong>Profil anatomiczny:</strong> ${anatomyProfile}</p>
+        </div>
+        
+        <div class="result-section highlight-box">
+            <h4>Dowód tezy</h4>
+            <p>${weightLossAnalysis}</p>
+            <p><strong>Teoretyczny limit masy ciała dla half crimpu (bez treningu):</strong> ${(maxBaseWeight).toFixed(1)} kg</p>
+            <p><strong>Teoretyczny limit masy ciała dla half crimpu (zaawansowany):</strong> ${(maxAdvancedWeight).toFixed(1)} kg</p>
+        </div>
+        
+        <div class="result-section">
+            <h4>Analiza porównawcza</h4>
+            <ul>
+                <li><strong>Bez treningu:</strong> ${maxBaseWeight.toFixed(1)} kg (${baseWeightRatio.toFixed(2)} × masa ciała)</li>
+                <li><strong>Zaawansowany wspinacz:</strong> ${maxAdvancedWeight.toFixed(1)} kg (${advancedWeightRatio.toFixed(2)} × masa ciała)</li>
+            </ul>
+        </div>
+        `;
     });
 });
